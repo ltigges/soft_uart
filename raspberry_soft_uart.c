@@ -24,6 +24,8 @@ static ktime_t period;
 static int gpio_tx = 0;
 static int gpio_rx = 0;
 static int rx_bit_index = -1;
+static int parity_en = 0;
+static int parity_odd = 0;
 
 /**
  * Initializes the Raspberry Soft UART infrastructure.
@@ -134,6 +136,19 @@ int raspberry_soft_uart_set_baudrate(const int baudrate)
 }
 
 /**
+ * Sets the Soft UART parity bit.
+ * @param en parity enable
+ * @param odd parity odd
+ * @return 1 if the operation is successful. 0 otherwise.
+ */
+int raspberry_soft_uart_set_parity(const int en, const int odd) 
+{
+  parity_en = en;
+  parity_odd = odd;
+  return 1;
+}
+
+/**
  * Adds a given string to the TX queue.
  * @paran string given string
  * @param string_size size of the given string
@@ -196,9 +211,15 @@ static enum hrtimer_restart handle_tx(struct hrtimer* timer)
   ktime_t current_time = ktime_get();
   static unsigned char character = 0;
   static int bit_index = -1;
+  static int tx_parity = 0;
   enum hrtimer_restart result = HRTIMER_NORESTART;
   bool must_restart_timer = false;
-  
+
+  // skip parity if not enabled
+  if (bit_index == 8 && !parity_en){
+    bit_index++;
+  }
+
   // Start bit.
   if (bit_index == -1)
   {
@@ -206,6 +227,7 @@ static enum hrtimer_restart handle_tx(struct hrtimer* timer)
     {
       gpio_set_value(gpio_tx, 0);
       bit_index++;
+      tx_parity = 0;
       must_restart_timer = true;
     }
   }
@@ -214,12 +236,23 @@ static enum hrtimer_restart handle_tx(struct hrtimer* timer)
   else if (0 <= bit_index && bit_index < 8)
   {
     gpio_set_value(gpio_tx, 1 & (character >> bit_index));
+    if(1 & (character >> bit_index)){
+      tx_parity ++;
+    }
+    //tx_parity += 1 & (character >> bit_index);
     bit_index++;
     must_restart_timer = true;
   }
-  
+
+  // Parity bit.
+  else if (bit_index == 8){
+    gpio_set_value(gpio_tx,(tx_parity+parity_odd)%2);
+    bit_index++;
+    must_restart_timer = true;
+  }
+
   // Stop bit.
-  else if (bit_index == 8)
+  else if (bit_index == 9)
   {
     gpio_set_value(gpio_tx, 1);
     character = 0;
