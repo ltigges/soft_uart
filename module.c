@@ -283,8 +283,12 @@ static void soft_uart_set_termios(struct tty_struct* tty, struct ktermios* termi
   
   // Verifies the parity (it must be none).
   if (cflag & PARENB)
-  {
-    if (cflag & PARODD){
+  { 
+    if(cflag & CMSPAR ){
+      raspberry_soft_uart_set_parity(0,0);
+      printk(KERN_ALERT "soft_uart: mark/space parity not supported.\n");
+    }
+    else if (cflag & PARODD){
       raspberry_soft_uart_set_parity(1,1);
       printk(KERN_INFO "soft_uart: enable odd parity");
     }
@@ -292,6 +296,10 @@ static void soft_uart_set_termios(struct tty_struct* tty, struct ktermios* termi
       raspberry_soft_uart_set_parity(1,0);
       printk(KERN_INFO "soft_uart: enable even parity");
     }
+  }
+  else{
+    raspberry_soft_uart_set_parity(0,0);
+    printk(KERN_INFO "soft_uart: disable parity");
   }
   
   // Configure the baudrate.

@@ -280,7 +280,11 @@ static enum hrtimer_restart handle_rx(struct hrtimer* timer)
   int bit_value = gpio_get_value(gpio_rx);
   enum hrtimer_restart result = HRTIMER_NORESTART;
   bool must_restart_timer = false;
-  
+
+  // skip parity if not enabled
+  if (rx_bit_index == 8 && !parity_en){
+    rx_bit_index++;
+  }
   // Start bit.
   if (rx_bit_index == -1)
   {
@@ -305,9 +309,15 @@ static enum hrtimer_restart handle_rx(struct hrtimer* timer)
     character >>= 1;
     must_restart_timer = true;
   }
+
+  // Parity bit.
+  else if (rx_bit_index == 8){
+    rx_bit_index++;
+    must_restart_timer = true;
+  }
   
   // Stop bit.
-  else if (rx_bit_index == 8)
+  else if (rx_bit_index == 9)
   {
     receive_character(character);
     rx_bit_index = -1;
